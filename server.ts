@@ -1,5 +1,6 @@
 import express from "express";
 import path from "node:path";
+import fs from "node:fs";
 import { streamOpenAICompat, listOpenAICompat } from "./server/providers/openai";
 import { streamAnthropic, listAnthropic } from "./server/providers/anthropic";
 import { streamGemini, listGemini } from "./server/providers/gemini";
@@ -138,8 +139,28 @@ if (process.env.NODE_ENV !== "production") {
   app.use(vite.middlewares);
 } else {
   const dist = path.resolve("dist");
-  app.use(express.static(dist));
-  app.get("*", (_req, res) => res.sendFile(path.join(dist, "index.html")));
+  const indexHtml = path.join(dist, "index.html");
+  if (fs.existsSync(dist)) {
+    app.use(express.static(dist));
+  }
+  app.get("*", (_req, res) => {
+    if (fs.existsSync(indexHtml)) {
+      return res.sendFile(indexHtml);
+    }
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Build Required</title></head>
+        <body style="font-family: system-ui, sans-serif; padding: 40px; text-align: center; color: #0F1F33;">
+          <h2>Frontend not built (dist/index.html is missing)</h2>
+          <p>The server started, but the static frontend files have not been generated yet.</p>
+          <p>In your Render Web Service settings, update the <strong>Build Command</strong> to:</p>
+          <pre style="background: #E6F1FB; padding: 12px; border-radius: 8px; display: inline-block;">npm install && npm run build</pre>
+          <p>Then trigger a manual deploy.</p>
+        </body>
+      </html>
+    `);
+  });
 }
 
 app.listen(PORT, "0.0.0.0", () => console.log(`Switchboard on :${PORT}`));
